@@ -22,9 +22,12 @@ CREATE TABLE role_permissions (
 -- Create Users Table
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    email VARCHAR(255) UNIQUE,
+    password_hash VARCHAR(255),
+    wallet_address VARCHAR(42) UNIQUE,
+    auth_challenge VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_email_or_wallet CHECK (email IS NOT NULL OR wallet_address IS NOT NULL)
 );
 
 -- Create a join table for users and roles (many-to-many)
@@ -90,5 +93,27 @@ CREATE TABLE registrations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, hackathon_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (hackathon_id) REFERENCES hackathons(id) ON DELETE CASCADE
+);
+
+-- Create Projects Table
+CREATE TABLE projects (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    github_url VARCHAR(255),
+    created_by_user_id INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create Submissions Table
+CREATE TABLE submissions (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL,
+    hackathon_id INTEGER NOT NULL,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, hackathon_id), -- A project can only be submitted once to a hackathon
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (hackathon_id) REFERENCES hackathons(id) ON DELETE CASCADE
 );

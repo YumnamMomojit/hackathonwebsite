@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ethers } from 'ethers';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -37,6 +38,57 @@ export default function LoginPage() {
       localStorage.setItem('token', token);
 
       // On successful login, redirect to the dashboard or homepage
+      router.push('/dashboard');
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWalletLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    if (typeof window.ethereum === 'undefined') {
+      setError('MetaMask is not installed. Please install it to use this feature.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Connect to wallet and get provider and signer
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const walletAddress = await signer.getAddress();
+
+      // 2. Get challenge from backend
+      const challengeRes = await fetch('/api/auth/web3/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress }),
+      });
+      if (!challengeRes.ok) throw new Error('Failed to get challenge from server.');
+      const { challenge } = await challengeRes.json();
+
+      // 3. Sign the challenge
+      const signature = await signer.signMessage(challenge);
+
+      // 4. Send signature to backend for verification
+      const loginRes = await fetch('/api/auth/web3/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, signature }),
+      });
+      if (!loginRes.ok) {
+        const errorData = await loginRes.json();
+        throw new Error(errorData.message || 'Web3 login failed.');
+      }
+
+      // 5. Store token and redirect
+      const { token } = await loginRes.json();
+      localStorage.setItem('token', token);
       router.push('/dashboard');
 
     } catch (err: any) {
@@ -100,6 +152,27 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+              Or continue with
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <button
+            onClick={handleWalletLogin}
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+          >
+            Connect Wallet
+          </button>
+        </div>
+
         <p className="text-sm text-center text-gray-600 dark:text-gray-400">
           Don't have an account?{' '}
           <Link href="/register" className="font-medium text-blue-600 hover:underline dark:text-blue-500">
